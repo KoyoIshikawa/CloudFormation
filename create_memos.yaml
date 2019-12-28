@@ -1,0 +1,122 @@
+###
+AWSTemplateFormatVersion: "2010-09-09"
+ 
+Resources:
+### Create VPC
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: "true"
+      EnableDnsHostnames: "true"
+      InstanceTenancy: default
+      Tags:
+       - Key: Name
+         Value: MyVPC
+# ここからが今回の内容です
+### CreateInternetGateway
+#### InternetGateway
+  MyIGW:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+     Tags:
+     - Key: Name
+       Value: IGW
+#### AttacheInternetGatewayToVPC
+  MyIGWAttachVPC:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      InternetGatewayId: !Ref MyIGW
+      VpcId: !Ref MyVPC
+# 組み込み関数の「!Ref」を使用してリソース名を取得しています
+ 
+### CreateSubnet
+#### MyAppSubnet1a
+  MyAppSubnet1a:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: ap-northeast-1a
+      CidrBlock: 10.0.10.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: MyAppSubnet1a
+#### MyAppSubnet1c
+  MyAppSubnet1c:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: ap-northeast-1c
+      CidrBlock: 10.0.11.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: MyAppSubnet1c
+#### MyDataSubnet1a
+  MyDataSubnet1a:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: ap-northeast-1a
+      CidrBlock: 10.0.20.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: MyDataSubnet1a
+#### MyDataSubnet1c
+  MyDataSubnet1c:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: ap-northeast-1c
+      CidrBlock: 10.0.21.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: MyDataSubnet1c
+ 
+###CreateRouteTable
+#### MyPublicRouteTable EC2
+  MyPublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+      - Key: Name
+        Value: MyPublicRouteTable
+ ####外部通信の許可
+  RouteAddInternet:
+    Type: "AWS::EC2::Route"
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref MyIGW
+      RouteTableId: !Ref MyPublicRouteTable
+####ルートテーブルの関連づけ
+  AssociateMyFrontSubnet1aToMyPublicRouteTable:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref MyPublicRouteTable
+      SubnetId: !Ref MyAppSubnet1a
+  AssociateMyFrontSubnet1cToMyPublicRouteTable:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref MyPublicRouteTable
+      SubnetId: !Ref MyAppSubnet1c
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupName: memos-app-rds-security-group
+      SecurityGroupIngress: 
+          - CidrIp: 0.0.0.0/0
+            FromPort: 80
+            IpProtocol: tcp
+            ToPort: 80
+          - CidrIp: 0.0.0.0/0
+            FromPort: 22
+            IpProtocol: tcp
+            ToPort: 22
+      Tags:
+            key: Name
+            value : memos-app-rds-security-group
+      VpcId: MyVPC

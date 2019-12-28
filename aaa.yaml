@@ -1,0 +1,175 @@
+###
+AWSTemplateFormatVersion: "2010-09-09"
+ 
+Resources:
+### Create VPC
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: "true"
+      EnableDnsHostnames: "true"
+      InstanceTenancy: default
+      Tags:
+       - Key: Name
+         Value: MyVPC
+# ここからが今回の内容です
+### CreateInternetGateway
+#### InternetGateway
+  MyIGW:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+     Tags:
+     - Key: Name
+       Value: IGW
+#### AttacheInternetGatewayToVPC
+  MyIGWAttachVPC:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      InternetGatewayId: !Ref MyIGW
+      VpcId: !Ref MyVPC
+# 組み込み関数の「!Ref」を使用してリソース名を取得しています
+ 
+### CreateNATGateway
+#### Elastic IP for NatGateway
+  MyEIPforNATGW:
+    Type: "AWS::EC2::EIP"
+    Properties:
+      Domain: vpc
+#### NatGateway
+  MyNATGW:
+    Type: "AWS::EC2::NatGateway"
+    Properties:
+      AllocationId:
+        !GetAtt MyEIPforNATGW.AllocationId
+# 組み込み関数の「!GetAtt」を使用してリソースの属性を取得しています
+      SubnetId:
+        !Ref MyFrontSubnet1a
+ 
+### CreateSubnet
+#### FrontSubnet1a
+  MyFrontSubnet1a:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: ap-northeast-1a
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+      - Key: Name
+        Value: MyFrontSubnet1a
+#### FrontSubnet1c
+  MyFrontSubnet1c:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: ap-northeast-1c
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+      - Key: Name
+        Value: MyFrontSubnet1c
+#### MyAppSubnet1a
+  MyAppSubnet1a:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: ap-northeast-1a
+      CidrBlock: 10.0.10.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: MyAppSubnet1a
+#### MyAppSubnet1c
+  MyAppSubnet1c:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: ap-northeast-1c
+      CidrBlock: 10.0.11.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: MyAppSubnet1c
+#### MyDataSubnet1a
+  MyDataSubnet1a:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: ap-northeast-1a
+      CidrBlock: 10.0.20.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: MyDataSubnet1a
+#### MyDataSubnet1c
+  MyDataSubnet1c:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref MyVPC
+      AvailabilityZone: ap-northeast-1c
+      CidrBlock: 10.0.21.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: MyDataSubnet1c
+ 
+###CreateRouteTable
+#### MyPublicRouteTable
+  MyPublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+      - Key: Name
+        Value: MyPublicRouteTable
+  RouteAddInternet:
+    Type: "AWS::EC2::Route"
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref MyIGW
+      RouteTableId: !Ref MyPublicRouteTable
+  AssociateMyFrontSubnet1aToMyPublicRouteTable:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref MyPublicRouteTable
+      SubnetId: !Ref MyFrontSubnet1a
+  AssociateMyFrontSubnet1cToMyPublicRouteTable:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref MyPublicRouteTable
+      SubnetId: !Ref MyFrontSubnet1c
+#### MyPrivateRouteTable
+  MyPrivateRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+      - Key: Name
+        Value: MyPrivateRouteTable
+  RouteAddNATGateway:
+    Type: "AWS::EC2::Route"
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref MyNATGW
+      RouteTableId: !Ref MyPrivateRouteTable
+  AssociateMyAppSubnet1aToMyPublicRouteTable:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref MyPrivateRouteTable
+      SubnetId: !Ref MyAppSubnet1a
+  AssociateMyAppSubnet1cToMyPublicRouteTable:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref MyPrivateRouteTable
+      SubnetId: !Ref MyAppSubnet1c
+  AssociateMyFrontSubnet1aToMyPrivateRouteTable:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref MyPrivateRouteTable
+      SubnetId: !Ref MyDataSubnet1a
+  AssociateMyFrontSubnet1cToMyPrivateRouteTable:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref MyPrivateRouteTable
+      SubnetId: !Ref MyDataSubnet1c
