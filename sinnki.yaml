@@ -1,4 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
+parameters:
+#VPCの作成
+  VpcId:
+    Description: VPC ID
+    Type: AWS::EC2::VPC::Id
 Resources:
   MemosVPC:
     Type: AWS::EC2::VPC
@@ -7,6 +12,7 @@ Resources:
       Tags:
       - Key: "Name"
         Value: "MemosVpc"
+  #
   MemosPubSubnet1a:
     Type: AWS::EC2::Subnet
     Properties:
@@ -17,6 +23,18 @@ Resources:
       Tags:
       - Key: "Name"
         Value: "MemosPubSubnet1a"
+  #
+  MemosPubSubnet1c:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: 
+        Ref: MemosVPC
+      CidrBlock: 10.0.11.0/24
+      AvailabilityZone: "ap-northeast-1c"
+      Tags:
+      - Key: "Name"
+        Value: "MemosPubSubnet1a"
+  #
   MemosPriSubnet1a:
     Type: AWS::EC2::Subnet
     Properties:
@@ -27,12 +45,25 @@ Resources:
       Tags:
       - Key: "Name"
         Value: "MemosPriSubnet1a"
+  #
+  MemosPriSubnet1c:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: 
+        Ref: MemosVPC
+      CidrBlock: 10.0.21.0/24
+      AvailabilityZone: "ap-northeast-1c"
+      Tags:
+      - Key: "Name"
+        Value: "MemosPriSubnet1c"
+  #
   MemosIgw:
     Type: AWS::EC2::InternetGateway
     Properties: 
       Tags:
       - Key: "Name"
-        Value: "MwmosIgw"
+        Value: "MemosIgw"
+  #
   MemosIgwAttach:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
@@ -40,6 +71,7 @@ Resources:
         Ref: MemosVPC
       InternetGatewayId:
         Ref: MemosIgw
+  #
   MemosRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -48,6 +80,7 @@ Resources:
       Tags:
       - Key: "Name"
         Value: "MemosRouteTable"
+  #
   MemosRouteInterNet:
     Type: AWS::EC2::Route
     DependsOn: MemosIgwAttach
@@ -57,13 +90,23 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId:
         Ref: MemosIgw
-  MemosSubnetRouteTableAssociation:
+  #
+  MemosSubnetRouteTableAssociationA:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId:
         Ref: MemosPubSubnet1a
       RouteTableId:
         Ref: MemosRouteTable
+  #
+  MemosSubnetRouteTableAssociationC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: MemosPubSubnet1c
+      RouteTableId:
+        Ref: MemosRouteTable
+  #
   MemosInstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -82,43 +125,54 @@ Resources:
         Tags: 
         - Key: "Name"
           Value: "MemosInstanceSecurityGroup"
-  MemosDBsubnetGroup:
+  #
+  MemosDbSubnetGroup: 
     Type: "AWS::RDS::DBSubnetGroup"
     Properties: 
-      DBSubnetGroupDescription: description
+      DBSubnetGroupDescription: MemosDBSubnetGroup
       SubnetIds: 
-        - subnet-7b5b4112
-        - subnet-7b5b4115
+        - Ref: MemosPriSubnet1a
+        - Ref: MemosPriSubnet1c
       Tags: 
         - 
-          Key: "Name"
-          Value: "MemosDBsubnetGroup"
-    
-
-  MemosDB:  
-    Resources: 
-      DBinstance: 
-        Type: AWS::RDS::DBInstance
-        Properties: 
-          DBSecurityGroups: 
-            - 
-              Ref: "DbSecurityByEC2SecurityGroup"
-          DBName: MemosDB
-          AllocatedStorage: "20"
-          DBInstanceClass: "db.2.micro"
-          Engine: "MySQL"
-          MasterUsername: "root"
-          MasterUserPassword: "password"
-
-        DeletionPolicy: "Snapshot"
-  DbSecurityByEC2SecurityGroup: 
+          Key: Name
+          Value: MemosDBSubnetGroup
+  # 
+  MemosRdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: MemosRdsSecurityGrou
+        VpcId: 
+          Ref: MemosVPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+        Tags: 
+        - Key: "Name"
+          Value: "MemosRdsSecurityGroup"
+  #
+  MemosRdsInstance: 
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBSecurityGroups:
+        -
+          Ref: "MemosRdsSecurityGroup"
+      AllocatedStorage: "5"
+      DBInstanceClass: "db.t2.micro"
+      Engine: MySQL
+      EngineVersion: "5.7.22"
+      MasterUsername: "root"
+      MasterUserPassword: "password"
+      AvailabilityZone: "ap-northeast-1a"
+    DeletionPolicy: "Snapshot"
+  #
+  DBSecurityGroup:
     Type: AWS::RDS::DBSecurityGroup
-    Properties: 
-      GroupDescription: "Ingress for Amazon EC2 security group"
-      DBSecurityGroupIngress: 
-        - 
-          EC2SecurityGroupId: "sg-b0ff1111"
-          EC2SecurityGroupOwnerId: "111122223333"
-        - 
-          EC2SecurityGroupId: "sg-ffd722222"
-          EC2SecurityGroupOwnerId: "111122223333"
+    Properties:
+        GroupDescription: DBSecurityGroup
+        DBSecurityGroupIngress:
+          -
+            EC2SecurityGroupName:
+              Ref: "MemosRdsSecurityGroup"
