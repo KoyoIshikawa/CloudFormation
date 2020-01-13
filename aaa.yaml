@@ -1,175 +1,121 @@
-###
-AWSTemplateFormatVersion: "2010-09-09"
- 
+AWSTemplateFormatVersion: '2010-09-09'
+Description: RDS Aurora Serverless MySQL
+Parameters:
+  VpcId:
+    Description: VPC ID
+    Type: AWS::EC2::VPC::Id
+  VpcRdsSubnetId1:
+    Description: RDS VPC subnet 1
+    Type: AWS::EC2::Subnet::Id
+  VpcRdsSubnetId2:
+    Description: RDS VPC subnet 2
+    Type: AWS::EC2::Subnet::Id
+  VpcRdsSubnetId3:
+    Description: RDS VPC subnet 3
+    Type: AWS::EC2::Subnet::Id
+  VpcApSubnet:
+    Description: AP VPC subnet
+    Type: String
+    Default: 172.31.0.0/16
+  RdsDBClusterIdentifier:
+    Description: DBClusterIdentifier
+    Type: String
+    Default: sstest
+    AllowedPattern: ^[a-zA-Z0-9]*$
+    MinLength: 1
+    MaxLength: 60
+  RdsDbMasterUsername:
+    Description: RdsDbMasterUsername
+    Type: String
+    Default: hogehoge
+  RdsDbMasterUserPassword:
+    Description: RdsDbMasterUserPassword
+    Type: String
+    Default: fugafuga
+    NoEcho: true
+  Env:
+    Description: Choose the environment to create
+    Type: String
+    Default: development
+    AllowedValues:
+      - development
+      - staging
+      - production
 Resources:
-### Create VPC
-  MyVPC:
-    Type: AWS::EC2::VPC
+  RdsDbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
     Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsSupport: "true"
-      EnableDnsHostnames: "true"
-      InstanceTenancy: default
+      DBSubnetGroupDescription: Database subnets for RDS
+      SubnetIds:
+        - !Ref 'VpcRdsSubnetId1'
+        - !Ref 'VpcRdsSubnetId2'
+        - !Ref 'VpcRdsSubnetId3'
       Tags:
-       - Key: Name
-         Value: MyVPC
-# ここからが今回の内容です
-### CreateInternetGateway
-#### InternetGateway
-  MyIGW:
-    Type: "AWS::EC2::InternetGateway"
+        - Key: CloudFormationArn
+          Value: !Ref 'AWS::StackId'
+        - Key: Env
+          Value: !Ref 'Env'
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
     Properties:
-     Tags:
-     - Key: Name
-       Value: IGW
-#### AttacheInternetGatewayToVPC
-  MyIGWAttachVPC:
-    Type: "AWS::EC2::VPCGatewayAttachment"
-    Properties:
-      InternetGatewayId: !Ref MyIGW
-      VpcId: !Ref MyVPC
-# 組み込み関数の「!Ref」を使用してリソース名を取得しています
- 
-### CreateNATGateway
-#### Elastic IP for NatGateway
-  MyEIPforNATGW:
-    Type: "AWS::EC2::EIP"
-    Properties:
-      Domain: vpc
-#### NatGateway
-  MyNATGW:
-    Type: "AWS::EC2::NatGateway"
-    Properties:
-      AllocationId:
-        !GetAtt MyEIPforNATGW.AllocationId
-# 組み込み関数の「!GetAtt」を使用してリソースの属性を取得しています
-      SubnetId:
-        !Ref MyFrontSubnet1a
- 
-### CreateSubnet
-#### FrontSubnet1a
-  MyFrontSubnet1a:
-    Type: "AWS::EC2::Subnet"
-    Properties:
-      VpcId: !Ref MyVPC
-      AvailabilityZone: ap-northeast-1a
-      CidrBlock: 10.0.0.0/24
-      MapPublicIpOnLaunch: true
+      VpcId: !Ref 'VpcId'
+      GroupDescription: Allow MySQL (TCP3306)
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: !Ref 'VpcApSubnet'
       Tags:
-      - Key: Name
-        Value: MyFrontSubnet1a
-#### FrontSubnet1c
-  MyFrontSubnet1c:
-    Type: "AWS::EC2::Subnet"
+        - Key: CloudFormationArn
+          Value: !Ref 'AWS::StackId'
+        - Key: Env
+          Value: !Ref 'Env'
+
+  RdsDbClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
     Properties:
-      VpcId: !Ref MyVPC
-      AvailabilityZone: ap-northeast-1c
-      CidrBlock: 10.0.1.0/24
-      MapPublicIpOnLaunch: true
+      Description: CloudFormation Aurora Cluster Parameter Group
+      Family: aurora5.6
+      Parameters:
+        server_audit_logging: 0
       Tags:
-      - Key: Name
-        Value: MyFrontSubnet1c
-#### MyAppSubnet1a
-  MyAppSubnet1a:
-    Type: "AWS::EC2::Subnet"
+        - Key: CloudFormationArn
+          Value: !Ref 'AWS::StackId'
+        - Key: Env
+          Value: !Ref 'Env'
+
+  RdsDbCluster:
+    Type: AWS::RDS::DBCluster
     Properties:
-      VpcId: !Ref MyVPC
-      AvailabilityZone: ap-northeast-1a
-      CidrBlock: 10.0.10.0/24
-      MapPublicIpOnLaunch: false
+      BackupRetentionPeriod: 7
+      DBClusterIdentifier: !Ref 'RdsDBClusterIdentifier'
+      DBClusterParameterGroupName: !Ref 'RdsDbClusterParameterGroup'
+      DBSubnetGroupName: !Ref 'RdsDbSubnetGroup'
+      DeletionProtection: false
+      Engine: aurora
+      EngineMode: serverless
+      EngineVersion: 5.6.10a
+      MasterUsername: !Ref 'RdsDbMasterUsername'
+      MasterUserPassword: !Ref 'RdsDbMasterUserPassword'
+      Port: 3306
+      PreferredBackupWindow: 15:25-15:55
+      PreferredMaintenanceWindow: Tue:16:05-Tue:16:35
+      ScalingConfiguration:
+        MinCapacity: 2
+        AutoPause: true
+        MaxCapacity: 4
+        SecondsUntilAutoPause: 1800
+      StorageEncrypted: true
       Tags:
-      - Key: Name
-        Value: MyAppSubnet1a
-#### MyAppSubnet1c
-  MyAppSubnet1c:
-    Type: "AWS::EC2::Subnet"
-    Properties:
-      VpcId: !Ref MyVPC
-      AvailabilityZone: ap-northeast-1c
-      CidrBlock: 10.0.11.0/24
-      MapPublicIpOnLaunch: false
-      Tags:
-      - Key: Name
-        Value: MyAppSubnet1c
-#### MyDataSubnet1a
-  MyDataSubnet1a:
-    Type: "AWS::EC2::Subnet"
-    Properties:
-      VpcId: !Ref MyVPC
-      AvailabilityZone: ap-northeast-1a
-      CidrBlock: 10.0.20.0/24
-      MapPublicIpOnLaunch: false
-      Tags:
-      - Key: Name
-        Value: MyDataSubnet1a
-#### MyDataSubnet1c
-  MyDataSubnet1c:
-    Type: "AWS::EC2::Subnet"
-    Properties:
-      VpcId: !Ref MyVPC
-      AvailabilityZone: ap-northeast-1c
-      CidrBlock: 10.0.21.0/24
-      MapPublicIpOnLaunch: false
-      Tags:
-      - Key: Name
-        Value: MyDataSubnet1c
- 
-###CreateRouteTable
-#### MyPublicRouteTable
-  MyPublicRouteTable:
-    Type: "AWS::EC2::RouteTable"
-    Properties:
-      VpcId: !Ref MyVPC
-      Tags:
-      - Key: Name
-        Value: MyPublicRouteTable
-  RouteAddInternet:
-    Type: "AWS::EC2::Route"
-    Properties:
-      DestinationCidrBlock: "0.0.0.0/0"
-      GatewayId: !Ref MyIGW
-      RouteTableId: !Ref MyPublicRouteTable
-  AssociateMyFrontSubnet1aToMyPublicRouteTable:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Properties:
-      RouteTableId: !Ref MyPublicRouteTable
-      SubnetId: !Ref MyFrontSubnet1a
-  AssociateMyFrontSubnet1cToMyPublicRouteTable:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Properties:
-      RouteTableId: !Ref MyPublicRouteTable
-      SubnetId: !Ref MyFrontSubnet1c
-#### MyPrivateRouteTable
-  MyPrivateRouteTable:
-    Type: "AWS::EC2::RouteTable"
-    Properties:
-      VpcId: !Ref MyVPC
-      Tags:
-      - Key: Name
-        Value: MyPrivateRouteTable
-  RouteAddNATGateway:
-    Type: "AWS::EC2::Route"
-    Properties:
-      DestinationCidrBlock: "0.0.0.0/0"
-      NatGatewayId: !Ref MyNATGW
-      RouteTableId: !Ref MyPrivateRouteTable
-  AssociateMyAppSubnet1aToMyPublicRouteTable:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Properties:
-      RouteTableId: !Ref MyPrivateRouteTable
-      SubnetId: !Ref MyAppSubnet1a
-  AssociateMyAppSubnet1cToMyPublicRouteTable:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Properties:
-      RouteTableId: !Ref MyPrivateRouteTable
-      SubnetId: !Ref MyAppSubnet1c
-  AssociateMyFrontSubnet1aToMyPrivateRouteTable:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Properties:
-      RouteTableId: !Ref MyPrivateRouteTable
-      SubnetId: !Ref MyDataSubnet1a
-  AssociateMyFrontSubnet1cToMyPrivateRouteTable:
-    Type: "AWS::EC2::SubnetRouteTableAssociation"
-    Properties:
-      RouteTableId: !Ref MyPrivateRouteTable
-      SubnetId: !Ref MyDataSubnet1c
+        - Key: CloudFormationArn
+          Value: !Ref 'AWS::StackId'
+        - Key: Env
+          Value: !Ref 'Env'
+      VpcSecurityGroupIds:
+        - !Ref 'RdsSecurityGroup'
+
+Outputs:
+  RdsSecurityGroup:
+    Value: !Ref 'RdsSecurityGroup'
+  RdsDbClusterEndpoint:
+    Value: !GetAtt 'RdsDbCluster.Endpoint.Address'

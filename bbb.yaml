@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: A sample template
+Parameters:
+  KeyPair:
+    Description: Select KeyPair Name.
+    Type: AWS::EC2::KeyPair::KeyName
+  MyRDSMasterUser:
+    Type: String
+    Default: admin
+    MinLength: 1
+    MaxLength: 16
+    NoEcho: true
+    AllowedPattern: '[a-z]+'
+  MyRDSMasterPassword :
+    Type: String
+    Default: password
+    MinLength: 8
+    MaxLength: 16
+    NoEcho: true
+    AllowedPattern : '[^\/@"]+'
+
+Resources:
+  MyVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: '10.10.0.0/16'
+      Tags:
+        - Key: 'Name'
+          Value: 'sample-vpc'
+  MyPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVpc
+      CidrBlock: '10.10.11.0/24'
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: 'Name'
+          Value: 'sample-public-subnet'
+  MyPrivateSubnet1A:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVpc
+      CidrBlock: '10.10.21.0/24'
+      AvailabilityZone: 'ap-northeast-1a'
+      Tags:
+        - Key: 'Name'
+          Value: 'sample-private-subnet1a' 
+  MyPrivateSubnet1C:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVpc
+      CidrBlock: '10.10.22.0/24'
+      AvailabilityZone: 'ap-northeast-1c'
+      Tags:
+        - Key: 'Name'
+          Value: 'sample-private-subnet1c' 
+  MyInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: 'Name'
+        Value: 'sample-igw'
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVpc
+      InternetGatewayId: !Ref MyInternetGateway
+  MyRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: 'Name'
+          Value: 'sample-rt'
+      VpcId: !Ref MyVpc
+  MyRoute:
+    Type: AWS::EC2::Route
+    DependsOn: MyInternetGateway
+    Properties:
+      RouteTableId: !Ref MyRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyInternetGateway
+  MySubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MyPublicSubnet
+      RouteTableId: !Ref MyRouteTable
+
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: 'ami-xxxxxx' # xにはidがはいる
+      InstanceType: t2.micro
+      SubnetId: !Ref MyPublicSubnet
+      BlockDeviceMappings:
+        - DeviceName: '/dev/xvda'
+          Ebs:
+            VolumeType: 'gp2'
+            VolumeSize: 8
+      Tags:
+        - Key: 'Name'
+          Value: 'sample-ec2-instance'
+      SecurityGroupIds:
+        - !Ref MyEC2SecurityGroup
+      KeyName: !Ref KeyPair
+  MyEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref MyVpc
+      Tags:
+        - Key: 'Name'
+          Value: 'sample-ssh-sg'
+      GroupDescription: Allow ssh
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+
+  MyRDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: SubnetGroup for RDS
+      SubnetIds:
+        - !Ref MyPrivateSubnet1A
+        - !Ref MyPrivateSubnet1C
+  MyRDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SecurityGroup for DB
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: '3306'
+          ToPort: '3306'
+      VpcId: !Ref MyVpc
+  MyRDSDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: '5'
+      DBSubnetGroupName: !Ref MyRDSSubnetGroup
+      VPCSecurityGroups: 
+      - !Ref MyRDSSecurityGroup
+      MultiAZ: true
+      DBInstanceClass: db.t2.micro
+      DBName: 'sample'
+      Engine: MySQL
+      EngineVersion: 5.7.22
+      MasterUsername: !Ref MyRDSMasterUser
+      MasterUserPassword: !Ref MyRDSMasterPassword
+    DeletionPolicy: Snapshot

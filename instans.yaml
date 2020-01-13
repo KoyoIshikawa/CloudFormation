@@ -1,22 +1,27 @@
-AWSTemplateFormatVersion: "2010-09-09"
-Resources:
+MemosRdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: Allow http to client host
+        VpcId: 
+          Ref: MemosVPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        Tags: 
+        - Key: "Name"
+          Value: "MemosRdsSecurityGroup"
   MemosInstance: 
-      Type: AWS::RDS::DBInstance
-      Properties: 
-        DBSecurityGroups: 
-          - 
-            Ref: "DbSecurityByEC2SecurityGroup"
-        AllocatedStorage: "5"
-        DBInstanceClass: "db.t2.micro"
-        Engine: "MySQL"
-        MasterUsername: "root"
-        MasterUserPassword: "password"
-      DeletionPolicy: "Snapshot"
-  DbSecurityByEC2SecurityGroup: 
-      Type: AWS::RDS::DBSecurityGroup
-      Properties: 
-        GroupDescription: "Ingress for Amazon EC2 security group"
-        DBSecurityGroupIngress: 
-          - 
-            EC2SecurityGroupId: "subnet-03bf4ec35cff443e8"
-            EC2SecurityGroupOwnerId: "522935911499"
+    Type: AWS::RDS::DBInstance
+    Properties: 
+      DBSecurityGroups: 
+        - 
+          Ref: "MemosRdsSecurityGroup"
+      AllocatedStorage: "5"
+      DBInstanceClass: "db.t2.micro"
+      Engine: MySQL
+      EngineVersion: "5.7.22"
+      MasterUsername: "root"
+      MasterUserPassword: "password"
+    DeletionPolicy: "Snapshot"

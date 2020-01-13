@@ -1,15 +1,13 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Parameters:
-  KeyPair:
-    Description: Select KeyPair Name.
-    Type: AWS::EC2::KeyPair::KeyName
+parameters:
+  VpcId:
+    Description: VPC ID
+    Type: AWS::EC2::VPC::Id
 Resources:
   MemosVPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.0.0.0/16
-      EnableDnsSupport: 'false'
-      EnableDnsHostnames: 'false'
       Tags:
       - Key: "Name"
         Value: "MemosVpc"
@@ -36,7 +34,7 @@ Resources:
   MemosPriSubnet1a:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId:
+      VpcId: 
         Ref: MemosVPC
       CidrBlock: 10.0.20.0/24
       AvailabilityZone: "ap-northeast-1a"
@@ -46,7 +44,7 @@ Resources:
   MemosPriSubnet1c:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId:
+      VpcId: 
         Ref: MemosVPC
       CidrBlock: 10.0.21.0/24
       AvailabilityZone: "ap-northeast-1c"
@@ -100,23 +98,22 @@ Resources:
   MemosInstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow http to client host
-      VpcId:
-        Ref: MemosVPC
-      GroupDescription: Allow ssh
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
-        CidrIp: 0.0.0.0/0
-      Tags:
-      - Key: "Name"
-        Value: "MemosInstanceSecurityGroup"
-  MemosDbSubnetGroup:
+        GroupDescription: Allow http to client host
+        VpcId:
+          Ref: MemosVPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        Tags:
+        - Key: "Name"
+          Value: "MemosInstanceSecurityGroup"
+  MemosDbSubnetGroup: 
     Type: "AWS::RDS::DBSubnetGroup"
     Properties:
       DBSubnetGroupDescription: MemosDBSubnetGroup
@@ -124,61 +121,43 @@ Resources:
         - Ref: MemosPriSubnet1a
         - Ref: MemosPriSubnet1c
       Tags:
-        - Key: Name
+        -
+          Key: Name
           Value: MemosDBSubnetGroup
   MemosRdsSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: MemosRdsSecurityGroup
-      VpcId:
-        Ref: MemosVPC
-      SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: 3306
-        ToPort: 3306
-        CidrIp: 0.0.0.0/0
+        GroupDescription: MemosRdsSecurityGrou
+        VpcId:
+          Ref: MemosVPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+        Tags:
+        - Key: "Name"
+          Value: "MemosRdsSecurityGroup"
   MemosRdsInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      VPCSecurityGroups:
-      - Ref: MemosRdsSecurityGroup
+      DBSecurityGroups:
+        -
+          Ref: "MemosRdsSecurityGroup"
       AllocatedStorage: "5"
       DBInstanceClass: "db.t2.micro"
       Engine: MySQL
-      DBName: 'sample'
-      EngineVersion: 5.7.22
-      MasterUsername: root
-      MasterUserPassword: password
-      DBSubnetGroupName: 
-        Ref: MemosDbSubnetGroup
+      EngineVersion: "5.7.22"
+      MasterUsername: "root"
+      MasterUserPassword: "password"
       AvailabilityZone: "ap-northeast-1a"
     DeletionPolicy: "Snapshot"
-  MemosEC2Instance1a:
-    Type: AWS::EC2::Instance
+  DBSecurityGroup:
+    Type: AWS::RDS::DBSecurityGroup
     Properties:
-      ImageId: 'ami-011facbea5ec0363b'
-      InstanceType: t2.micro
-      SubnetId: !Ref MemosPubSubnet1a
-      KeyName: !Ref KeyPair
-      Tags:
-        - Key: 'Name'
-          Value: 'MemosEC2Instance1a'
-      SecurityGroupIds:
-        - !Ref MemosInstanceSecurityGroup
-  MemosEC2Instance1c:
-    Type: AWS::EC2::Instance
-    Properties:
-      AvailabilityZone: ap-northeast-1c
-      ImageId: 'ami-011facbea5ec0363b'
-      InstanceType: t2.micro
-      SubnetId: !Ref MemosPubSubnet1c
-      KeyName: !Ref KeyPair
-      Tags:
-        - Key: 'Name'
-          Value: 'MemosEC2Instance1c'
-      SecurityGroupIds:
-        - !Ref MemosInstanceSecurityGroup
-  MyEIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      InstanceId: !Ref 'MemosEC2Instance1a'
+        GroupDescription: DBSecurityGroup
+        DBSecurityGroupIngress:
+          -
+            EC2SecurityGroupName:
+              Ref: "MemosRdsSecurityGroup"
+            
