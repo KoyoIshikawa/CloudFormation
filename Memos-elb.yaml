@@ -103,12 +103,11 @@ Resources:
       GroupDescription: Allow http to client host
       VpcId:
         Ref: MemosVPC
-      GroupDescription: Allow ssh
       SecurityGroupIngress:
       - IpProtocol: tcp
         FromPort: 80
         ToPort: 80
-        CidrIp: 0.0.0.0/0
+        CidrIp: !Ref MemosELB
       - IpProtocol: tcp
         FromPort: 22
         ToPort: 22
@@ -178,7 +177,54 @@ Resources:
           Value: 'MemosEC2Instance1c'
       SecurityGroupIds:
         - !Ref MemosInstanceSecurityGroup
-  MyEIP:
-    Type: AWS::EC2::EIP
+  MemosELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    DependsOn: MemosIgwAttach
     Properties:
-      InstanceId: !Ref 'MemosEC2Instance1a'
+      AccessLoggingPolicy:
+        Enabled: 'true'
+        S3BucketName: memos.app.log
+      AvailabilityZones: 
+        - "ap-northeast-1a"
+        - "ap-northeast-1c"
+      ConnectionDrainingPolicy: 
+        Enabled: 'false'
+      CrossZone: 'true'
+      HealthCheck: 
+        HealthyThreshold: '2'
+        Interval: '10'
+        Target: TCP:5000
+        Timeout: '5'
+        UnhealthyThreshold: '2'
+      Instances: 
+        - !Ref MemosEC2Instance1a
+        - !Ref MemosEC2Instance1c
+      Listeners: 
+        - 
+          InstancePort: '80'
+          InstanceProtocol: HTTP
+          LoadBalancerPort: '80'
+          PolicyNames: 
+            - ALB-listeer
+          Protocol: HTTP
+      LoadBalancerName: MemosAlb
+      Scheme: internet-facing
+      SecurityGroups: 
+      - !Ref MemosElbSg
+      Tags: 
+        - key: 'Name'
+          Value: 'MemosELB'
+  MemosElbSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host
+      VpcId:
+        Ref: MemosVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: "Name"
+        Value: "MemosElbSg"
